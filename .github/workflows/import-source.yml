@@ -1,0 +1,37 @@
+name: Import LinkVideo.Tools sources
+on:
+  push:
+    paths:
+      - '_import/part07.b64'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  unpack:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore and check source archive
+        shell: bash
+        run: |
+          cat _import/part*.b64 | base64 --decode > /tmp/linkvideo-tools-source.tar.xz
+          echo "a69584c792d053b2503e26c4ba9cd2e063aee94381ae19ead01fa2a0046e3f31  /tmp/linkvideo-tools-source.tar.xz" | sha256sum --check
+          tar -tf /tmp/linkvideo-tools-source.tar.xz | grep -q './main_windows.go'
+          tar -xJf /tmp/linkvideo-tools-source.tar.xz -C .
+          rm -rf _import
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+      - name: Test and build Windows EXE
+        run: |
+          go test ./...
+          go vet ./...
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-H windowsgui -s -w" -o LinkVideo.Tools.exe .
+      - name: Commit restored source files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Import LinkVideo.Tools v0.7 sources" || exit 0
+          git push
