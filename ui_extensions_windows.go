@@ -106,10 +106,10 @@ func positionExtraControls() {
 		half := (w - 60) / 2
 		clockY := int32(470)
 		if archiveSyncView {
-			clockY = 465
+			clockY = 383
 		}
-		procMoveWindow.Call(startClock, uintptr(x+23), uintptr(clockY), uintptr(half), 43, 1)
-		procMoveWindow.Call(endClock, uintptr(x+w/2+7), uintptr(clockY), uintptr(half), 43, 1)
+		procMoveWindow.Call(startClock, uintptr(x+23), uintptr(clockY), uintptr(half), uintptr(38), 1)
+		procMoveWindow.Call(endClock, uintptr(x+w/2+7), uintptr(clockY), uintptr(half), uintptr(38), 1)
 	}
 	isWatch := page == 5
 	for _, h := range []uintptr{checkEdit, afterEdit, staleEdit, cooldownEdit, serviceEdit} {

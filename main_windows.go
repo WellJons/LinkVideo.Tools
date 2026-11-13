@@ -368,7 +368,7 @@ func drawSidebar(h uintptr) {
 	nav(h, "nav5", 377, "⟳", "Nimble", page == 5)
 	fill(h, rr(23, viewHeight-102, 190, 1), "#3A434D", 0)
 	label(h, "Архив + диагностика + Nimble", 23, viewHeight-89, 190, 26, fontSmall, "#B1BBC5")
-	label(h, "v0.7  •  LinkVideo", 23, viewHeight-57, 185, 24, fontSmall, "#84919F")
+	label(h, "v0.8  •  LinkVideo", 23, viewHeight-57, 185, 24, fontSmall, "#84919F")
 }
 func drawHeader(h uintptr, title, sub string) {
 	x := mainX()
@@ -649,7 +649,7 @@ func timestamp(t time.Time) string {
 }
 func snapshotReport(s snapshot) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "LinkVideo.Server Tools v0.7 — диагностика\r\nПроверено: %s\r\n\r\n", s.Time.Format("02.01.2006 15:04:05"))
+	fmt.Fprintf(&b, "LinkVideo.Server Tools v0.8 — диагностика\r\nПроверено: %s\r\n\r\n", s.Time.Format("02.01.2006 15:04:05"))
 	b.WriteString("[ПРОЦЕССЫ]\r\n")
 	if s.ProcError != "" {
 		fmt.Fprintf(&b, "Ошибка: %s\r\n", s.ProcError)
@@ -816,6 +816,7 @@ func windowProc(hwnd uintptr, msg uint32, wp, lp uintptr) uintptr {
 		initNativeSyncControl(hwnd)
 		positionInputs()
 		procSetTimer.Call(hwnd, 1, 15000, 0)
+		procSetTimer.Call(hwnd, 2, 3000, 0)
 		doRefresh()
 		return 0
 	case WM_SIZE:
@@ -889,6 +890,8 @@ func windowProc(hwnd uintptr, msg uint32, wp, lp uintptr) uintptr {
 		if wp == 1 {
 			doRefresh()
 			tickWatch()
+		} else if wp == 2 {
+			pollNativeSyncDiagnostics()
 		}
 		return 0
 	case WM_DESTROY:
@@ -896,7 +899,11 @@ func windowProc(hwnd uintptr, msg uint32, wp, lp uintptr) uintptr {
 			procSetThreadExecutionState.Call(ES_CONTINUOUS)
 		}
 		shutdownDateControls()
+		if nativeSyncCancel != nil {
+			nativeSyncCancel()
+		}
 		procKillTimer.Call(hwnd, 1)
+		procKillTimer.Call(hwnd, 2)
 		if brushInput != 0 {
 			procDeleteObject.Call(brushInput)
 		}
@@ -917,14 +924,14 @@ func main() {
 	procSetProcessDPIAware.Call()
 	initDateControls()
 	inst, _, _ := procGetModuleHandleW.Call(0)
-	class := u("LinkVideoServerTools06")
+	class := u("LinkVideoServerTools08")
 	wc := wndClass{Size: uint32(unsafe.Sizeof(wndClass{})), WndProc: syscall.NewCallback(windowProc), Instance: inst, ClassName: class}
 	r, _, e := procRegisterClassExW.Call(uintptr(unsafe.Pointer(&wc)))
 	if r == 0 {
 		procMessageBoxW.Call(0, ptr(fmt.Sprintf("Регистрация окна: %v", e)), ptr("Ошибка"), 0x10)
 		return
 	}
-	win, _, e = procCreateWindowExW.Call(0, uintptr(unsafe.Pointer(class)), ptr("LinkVideo.Server Tools  ·  v0.7"), WS_OVERLAPPEDWINDOW|WS_VISIBLE|WS_CLIPSIBLINGS, 70, 50, 1180, 790, 0, 0, inst, 0)
+	win, _, e = procCreateWindowExW.Call(0, uintptr(unsafe.Pointer(class)), ptr("LinkVideo.Server Tools  ·  v0.8"), WS_OVERLAPPEDWINDOW|WS_VISIBLE|WS_CLIPSIBLINGS, 70, 50, 1180, 790, 0, 0, inst, 0)
 	if win == 0 {
 		procMessageBoxW.Call(0, ptr(fmt.Sprintf("Создание окна: %v", e)), ptr("Ошибка"), 0x10)
 		return

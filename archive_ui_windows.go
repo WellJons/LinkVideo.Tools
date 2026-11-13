@@ -236,7 +236,13 @@ func archiveViewAction(id string) bool {
 	case "native_sync_start":
 		startNativeSync()
 		return true
-	case "native_sync_busy":
+	case "native_sync_cancel":
+		stopNativeSyncWait()
+		return true
+	case "native_sync_stop_watch":
+		nativeSyncTracking = false
+		nativeSyncResultText = "Наблюдение остановлено вручную; это не отменяет задания сервера"
+		invalidate()
 		return true
 	case "archive_sync":
 		_, _, ok := selectedArchive()
@@ -334,11 +340,11 @@ func drawCalendar(h uintptr) {
 	px, py := x+w-360, int32(303)
 	if calendarTarget == "start" {
 		px = x + 25
-		py = 355
+		py = 330
 	}
 	if calendarTarget == "end" {
 		px = x + w - 341
-		py = 355
+		py = 330
 	}
 	const cw, ch = int32(320), int32(312)
 	outline(h, rr(px, py, cw, ch), sysColor("border"), 18, sysColor("panel"))
