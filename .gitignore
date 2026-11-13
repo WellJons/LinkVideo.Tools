@@ -1,0 +1,16 @@
+# Local archive, logs, binaries and credentials
+*.exe
+*.dat
+*.db
+*.dbpart
+*.log
+*.rar
+*.zip
+Videos/
+upload_manifests/
+local.config
+config.json
+.env
+.env.*
+*.key
+*.pem

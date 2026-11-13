@@ -1,0 +1,32 @@
+name: Build LinkVideo.Tools (Windows)
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Test
+        shell: pwsh
+        run: |
+          go test ./...
+          go vet ./...
+      - name: Build Windows executable
+        shell: pwsh
+        run: |
+          $env:GOOS = 'windows'
+          $env:GOARCH = 'amd64'
+          $env:CGO_ENABLED = '0'
+          go build -ldflags="-H windowsgui -s -w" -o LinkVideo.Tools.exe .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LinkVideo.Tools-Windows-x64
+          path: LinkVideo.Tools.exe
+          if-no-files-found: error
