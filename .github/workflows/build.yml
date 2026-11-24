@@ -1,6 +1,8 @@
 name: Build LinkVideo.Tools (Windows)
 on:
   push:
+    branches: [main, feature/network-camera-diagnostics]
+  pull_request:
     branches: [main]
   workflow_dispatch:
 permissions:
