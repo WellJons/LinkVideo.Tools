@@ -53,7 +53,6 @@ func monitorSummary(h NetworkMonitorHistory) string {
 		h.IP, h.Started.Format("02.01.2006 15:04:05"))
 	good, longestFailed, streak := 0, 0, 0
 	var starts []string
-	lastStart := time.Time{}
 	for _, s := range h.Samples {
 		if s.ICMPResponds {
 			good++
@@ -61,10 +60,8 @@ func monitorSummary(h NetworkMonitorHistory) string {
 				longestFailed = streak
 			}
 			streak = 0
-			lastStart = time.Time{}
 		} else {
 			if streak == 0 {
-				lastStart = s.At
 				if len(starts) < 30 {
 					starts = append(starts, s.At.Format("15:04:05"))
 				}
