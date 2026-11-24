@@ -370,7 +370,7 @@ func drawSidebar(h uintptr) {
 	nav(h, "nav7", 481, "≋", "Wi-Fi", page == 7)
 	fill(h, rr(23, viewHeight-102, 190, 1), "#3A434D", 0)
 	label(h, "Архив + диагностика + Nimble", 23, viewHeight-89, 190, 26, fontSmall, "#B1BBC5")
-	label(h, "v0.8  •  LinkVideo", 23, viewHeight-57, 185, 24, fontSmall, "#84919F")
+	label(h, "v0.9-dev  •  LinkVideo", 23, viewHeight-57, 185, 24, fontSmall, "#84919F")
 }
 func drawHeader(h uintptr, title, sub string) {
 	x := mainX()
@@ -655,7 +655,7 @@ func timestamp(t time.Time) string {
 }
 func snapshotReport(s snapshot) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "LinkVideo.Server Tools v0.8 — диагностика\r\nПроверено: %s\r\n\r\n", s.Time.Format("02.01.2006 15:04:05"))
+	fmt.Fprintf(&b, "LinkVideo.Server Tools v0.9-dev — диагностика\r\nПроверено: %s\r\n\r\n", s.Time.Format("02.01.2006 15:04:05"))
 	b.WriteString("[ПРОЦЕССЫ]\r\n")
 	if s.ProcError != "" {
 		fmt.Fprintf(&b, "Ошибка: %s\r\n", s.ProcError)
@@ -946,7 +946,7 @@ func main() {
 		procMessageBoxW.Call(0, ptr(fmt.Sprintf("Регистрация окна: %v", e)), ptr("Ошибка"), 0x10)
 		return
 	}
-	win, _, e = procCreateWindowExW.Call(0, uintptr(unsafe.Pointer(class)), ptr("LinkVideo.Server Tools  ·  v0.8"), WS_OVERLAPPEDWINDOW|WS_VISIBLE|WS_CLIPSIBLINGS, 70, 50, 1180, 790, 0, 0, inst, 0)
+	win, _, e = procCreateWindowExW.Call(0, uintptr(unsafe.Pointer(class)), ptr("LinkVideo.Server Tools  ·  v0.9-dev"), WS_OVERLAPPEDWINDOW|WS_VISIBLE|WS_CLIPSIBLINGS, 70, 50, 1180, 790, 0, 0, inst, 0)
 	if win == 0 {
 		procMessageBoxW.Call(0, ptr(fmt.Sprintf("Создание окна: %v", e)), ptr("Ошибка"), 0x10)
 		return
