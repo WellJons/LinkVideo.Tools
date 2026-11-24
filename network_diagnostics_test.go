@@ -89,3 +89,35 @@ func TestReportQualifiers(t *testing.T) {
 	// this verifies only that it terminates, not that cameras exist.
 	_ = err
 }
+
+
+func TestXMDiscoveryFrame(t *testing.T) {
+	request := xmProbe()
+	if len(request) != 20 || request[0] != 0xff || binary.LittleEndian.Uint16(request[14:16]) != 1530 {
+		t.Fatalf("bad XM probe: %x", request)
+	}
+	payload := []byte(`{"NetWork.NetCommon":{"HostName":"DVR","MAC":"00:11:22:33:44:55","HostIP":"0x0101A8C0"}}`)
+	response := make([]byte, 20+len(payload))
+	copy(response, request)
+	binary.LittleEndian.PutUint16(response[14:16], 1531)
+	binary.LittleEndian.PutUint32(response[16:20], uint32(len(payload)))
+	copy(response[20:], payload)
+	device, ok := parseXM(response, "192.168.1.1")
+	if !ok || device.Protocol != "XM-DVRIP" || device.AdvertisedIP != "192.168.1.1" {
+		t.Fatalf("XM response wrong: %#v, %t", device, ok)
+	}
+	if _, ok := parseXM(response[:20], "192.168.1.1"); ok {
+		t.Fatal("accepted truncated XM response")
+	}
+}
+
+func TestMonitorOutages(t *testing.T) {
+	h := NetworkMonitorHistory{IP: "192.168.1.12", Started: time.Unix(1, 0)}
+	for i, alive := range []bool{true, false, false, true, false} {
+		h.Samples = append(h.Samples, NetworkSample{At: time.Unix(int64(i+1), 0), ICMPResponds: alive})
+	}
+	s := monitorSummary(h)
+	if !strings.Contains(s, "Максимальная серия проверок без ответа: 2") || !strings.Contains(s, "нет ответа: 3") {
+		t.Fatalf("bad monitor summary: %s", s)
+	}
+}
