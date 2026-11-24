@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -224,6 +225,47 @@ func parseDHIP(data []byte, source string) (DiscoveredDevice, bool) {
 	return DiscoveredDevice{IP: source, AdvertisedIP: ip, Protocol: "DHIP", MAC: mac, Model: model}, true
 }
 
+// XMEye / Xiongmai use DVRIP (Sofia) UDP discovery, type 1530 request,
+// type 1531 reply. Header is 20 bytes: magic, session, sequence,
+// fragment info, type, little-endian payload size.
+func xmProbe() []byte {
+	p := make([]byte, 20)
+	p[0], p[1] = 0xff, 0x01
+	binary.LittleEndian.PutUint16(p[14:], 1530)
+	return p
+}
+
+func parseXM(data []byte, source string) (DiscoveredDevice, bool) {
+	if len(data) < 20 || data[0] != 0xff || data[1] != 0x01 ||
+		binary.LittleEndian.Uint16(data[14:16]) != 1531 {
+		return DiscoveredDevice{}, false
+	}
+	size := int(binary.LittleEndian.Uint32(data[16:20]))
+	if size < 2 || size > len(data)-20 || size > 32768 {
+		return DiscoveredDevice{}, false
+	}
+	var root map[string]any
+	if json.Unmarshal(data[20:20+size], &root) != nil {
+		return DiscoveredDevice{}, false
+	}
+	info, ok := root["NetWork.NetCommon"].(map[string]any)
+	if !ok {
+		return DiscoveredDevice{}, false
+	}
+	mac := getString(info, "MAC")
+	name := getString(info, "HostName")
+	address := getString(info, "HostIP")
+	if mac == "" && name == "" && address == "" {
+		return DiscoveredDevice{}, false
+	}
+	advertised := ""
+	if n, err := strconv.ParseUint(strings.TrimPrefix(strings.ToLower(address), "0x"), 16, 32); err == nil {
+		advertised = net.IPv4(byte(n), byte(n>>8), byte(n>>16), byte(n>>24)).String()
+	}
+	return DiscoveredDevice{IP: source, AdvertisedIP: advertised, Protocol: "XM-DVRIP",
+		MAC: mac, Name: name, Model: "Xiongmai / XMEye"}, true
+}
+
 // discoveryTargets uses only read-only multicast discovery probes.
 func discoveryTargets() []discoveryProtocol {
 	return []discoveryProtocol{
@@ -234,15 +276,23 @@ func discoveryTargets() []discoveryProtocol {
 				[]byte(`<?xml version="1.0" encoding="utf-8"?><Probe><Uuid>9dc97513-bbf8-4c8c-938f-180343719865</Uuid><Types>inquiry_v32</Types></Probe>`),
 			}, parseSADP},
 		{"DHIP", "239.255.255.251", 37810, [][]byte{dahuaProbe()}, parseDHIP},
+		{"XM-DVRIP", "255.255.255.255", 34569, [][]byte{xmProbe()}, parseXM},
 	}
 }
 
 func scanUDP(ctx context.Context, local net.IP, p discoveryProtocol, timeout time.Duration) []DiscoveredDevice {
-	conn, err := net.ListenUDP("udp4", &net.UDPAddr{IP: local, Port: 0})
+	port := 0
+	if p.name == "XM-DVRIP" {
+		port = p.port // Some devices answer the well-known discovery port.
+	}
+	conn, err := net.ListenUDP("udp4", &net.UDPAddr{IP: local, Port: port})
 	if err != nil {
 		return nil
 	}
 	defer conn.Close()
+	if p.name == "XM-DVRIP" || p.name == "SADP" {
+		_ = enableUDPBroadcast(conn)
+	}
 	target := &net.UDPAddr{IP: net.ParseIP(p.group), Port: p.port}
 	for _, packet := range p.probe {
 		_, _ = conn.WriteToUDP(packet, target)
@@ -286,7 +336,7 @@ func DiscoverCameras(ctx context.Context, duration time.Duration) ([]DiscoveredD
 	if err != nil {
 		return nil, err
 	}
-	result := make(chan []DiscoveredDevice, len(ips)*3)
+	result := make(chan []DiscoveredDevice, len(ips)*len(discoveryTargets()))
 	var wg sync.WaitGroup
 	for _, ip := range ips {
 		for _, proto := range discoveryTargets() {
