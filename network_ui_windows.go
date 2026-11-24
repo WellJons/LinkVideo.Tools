@@ -11,7 +11,10 @@ import (
 	"time"
 )
 
-const WM_APP_NETWORK = 0x8007
+const (
+	WM_APP_NETWORK = 0x8007
+	WM_APP_NETWORK_SAMPLE = 0x8008
+)
 
 type networkResponse struct {
 	kind    string
@@ -24,6 +27,10 @@ type networkResponse struct {
 var (
 	networkIPControl, networkLogControl uintptr
 	networkResults = make(chan networkResponse, 1)
+	networkSamples = make(chan NetworkSample, 64)
+	networkMonitorCancel context.CancelFunc
+	networkHistory NetworkMonitorHistory
+	monitorReport string
 	networkBusy bool
 	networkStatus = "Доступны поиск ONVIF / SADP / DHIP, проверка IP и сканирование Wi-Fi."
 	networkDevices []DiscoveredDevice
@@ -93,7 +100,10 @@ func drawDiscoveryPage(h uintptr) {
 	label(h, "Диагностика выбранного IP", x+22, 527, w-44, 27, fontBold, sysColor("text"))
 	label(h, "IP-адрес (без URL и пароля)", x+304, 552, w-470, 27, fontSmall, sysColor("muted"))
 	action(h, "network_probe", rr(x+w-174, 543, 153, 43), "Проверить", true)
-	label(h, "Результаты диагностики", x+22, 587, w-45, 23, fontSmall, sysColor("muted"))
+	label(h, "Результаты диагностики", x+22, 587, 270, 23, fontSmall, sysColor("muted"))
+	action(h, "network_monitor_start", rr(x+w-363, 587, 132, 30), "Старт ICMP", false)
+	action(h, "network_monitor_stop", rr(x+w-223, 587, 93, 30), "Стоп", false)
+	action(h, "network_save_report", rr(x+w-122, 587, 102, 30), "↓ TXT", false)
 	dateLabel(h)
 }
 
@@ -122,7 +132,8 @@ func drawWiFiPage(h uintptr) {
 		label(h, fmt.Sprintf("%d dBm  •  %d%%", n.RSSI, n.Quality), x+462, y+4, 190, 30, fontNormal, sysColor("text"))
 	}
 	card(h, rr(x, 608, w, maxInt32(103, viewHeight-660)))
-	label(h, "Результаты и ограничения диагностики", x+20, 608, w-45, 22, fontSmall, sysColor("muted"))
+	label(h, "Результаты и ограничения диагностики", x+20, 608, w-240, 22, fontSmall, sysColor("muted"))
+	action(h, "network_save_report", rr(x+w-175, 605, 155, 28), "↓ Сохранить TXT", false)
 	dateLabel(h)
 }
 
@@ -156,7 +167,7 @@ func updateNetworkReport() {
 	b.WriteString("LinkVideo.Tools — диагностика сети и камер\r\n")
 	b.WriteString("Протоколы поиска: ONVIF WS-Discovery, Hikvision SADP, Dahua DHIP.\r\n")
 	b.WriteString("Проверка камер не выполняет авторизацию, изменение настроек и получение видео.\r\n\r\n")
-	for _, section := range []string{discoveryReport, wifiReport, probeReport} {
+	for _, section := range []string{discoveryReport, wifiReport, probeReport, monitorReport} {
 		if section != "" {
 			b.WriteString(section)
 			b.WriteString("\r\n")
@@ -194,10 +205,68 @@ func networkDone() {
 	invalidate()
 }
 
+func startNetworkMonitor() {
+	if networkMonitorCancel != nil {
+		return
+	}
+	ip, err := validatedCameraIP(textFrom(networkIPControl))
+	if err != nil {
+		showMsg(err.Error(), "IP камеры", 0x30)
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	networkMonitorCancel = cancel
+	networkHistory = NetworkMonitorHistory{IP: ip, Started: time.Now()}
+	monitorReport = monitorSummary(networkHistory)
+	networkStatus = "Наблюдение ICMP за " + ip + " (каждые 2 секунды)"
+	updateNetworkReport()
+	invalidate()
+	go func() {
+		_ = MonitorCamera(ctx, ip, 2*time.Second, func(sample NetworkSample) {
+			select {
+			case networkSamples <- sample:
+				procPostMessageW.Call(win, WM_APP_NETWORK_SAMPLE, 0, 0)
+			default:
+				// Do not block the monitor when the UI message queue is congested.
+			}
+		})
+	}()
+}
+
+func stopNetworkMonitor() {
+	if networkMonitorCancel == nil {
+		return
+	}
+	networkMonitorCancel()
+	networkMonitorCancel = nil
+	networkStatus = "Мониторинг остановлен"
+	monitorReport = monitorSummary(networkHistory)
+	updateNetworkReport()
+	invalidate()
+}
+
+func networkSampleDone() {
+	select {
+	case sample := <-networkSamples:
+		networkHistory.Samples = append(networkHistory.Samples, sample)
+		monitorReport = monitorSummary(networkHistory)
+		networkStatus = fmt.Sprintf("ICMP %s: %d проверок, последняя: %s",
+			networkHistory.IP, len(networkHistory.Samples),
+			map[bool]string{true: "ответ", false: "нет ответа"}[sample.ICMPResponds])
+		updateNetworkReport()
+		invalidate()
+	default:
+	}
+}
+
 func networkAction(id string) bool {
 	switch id {
 	case "network_discover":
 		beginNetworkOperation("discover")
+	case "network_monitor_start":
+		startNetworkMonitor()
+	case "network_monitor_stop":
+		stopNetworkMonitor()
 	case "network_probe":
 		beginNetworkOperation("probe")
 	case "network_wifi_scan":
