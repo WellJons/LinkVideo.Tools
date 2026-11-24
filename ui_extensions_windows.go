@@ -422,6 +422,9 @@ func tickWatch() {
 	}
 }
 func extensionAction(id string) bool {
+	if networkAction(id) {
+		return true
+	}
 	if archiveViewAction(id) {
 		return true
 	}
@@ -530,6 +533,12 @@ func extensionAction(id string) bool {
 }
 func extensionMessage(hwnd uintptr, msg uint32, wp, lp uintptr) bool {
 	switch msg {
+	case WM_APP_NETWORK_SAMPLE:
+		networkSampleDone()
+		return true
+	case WM_APP_NETWORK:
+		networkDone()
+		return true
 	case WM_APP_CATALOG:
 		res := <-catalogResults
 		scanning = false
