@@ -909,6 +909,7 @@ func windowProc(hwnd uintptr, msg uint32, wp, lp uintptr) uintptr {
 		}
 		return 0
 	case WM_DESTROY:
+		stopNetworkMonitor()
 		if awake {
 			procSetThreadExecutionState.Call(ES_CONTINUOUS)
 		}
