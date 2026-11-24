@@ -366,6 +366,8 @@ func drawSidebar(h uintptr) {
 	nav(h, "nav3", 273, "≡", "Журнал", page == 3)
 	nav(h, "nav4", 325, "⚙", "Настройки", page == 4)
 	nav(h, "nav5", 377, "⟳", "Nimble", page == 5)
+	nav(h, "nav6", 429, "⌕", "Сеть и камеры", page == 6)
+	nav(h, "nav7", 481, "≋", "Wi-Fi", page == 7)
 	fill(h, rr(23, viewHeight-102, 190, 1), "#3A434D", 0)
 	label(h, "Архив + диагностика + Nimble", 23, viewHeight-89, 190, 26, fontSmall, "#B1BBC5")
 	label(h, "v0.8  •  LinkVideo", 23, viewHeight-57, 185, 24, fontSmall, "#84919F")
@@ -604,6 +606,10 @@ func draw(hdc uintptr) {
 		drawSettings(mem)
 	case 5:
 		drawNimble(mem)
+	case 6:
+		drawDiscoveryPage(mem)
+	case 7:
+		drawWiFiPage(mem)
 	}
 	procBitBlt.Call(hdc, 0, 0, uintptr(w), uintptr(h), mem, 0, 0, SRCCOPY)
 	procSelectObject.Call(mem, old)
@@ -695,7 +701,7 @@ func doRefresh() {
 		s.ProcError = err.Error()
 	}
 	current = s
-	exportText = snapshotReport(s)
+	exportText = snapshotReport(s) + "\r\n" + networkReport
 	setText(reportEdit, exportText)
 	invalidate()
 }
@@ -740,6 +746,12 @@ func hit(actionID string) {
 			watchState.LastCheck = time.Time{}
 			tickWatch()
 		}
+		if page == 6 {
+			beginNetworkOperation("discover")
+		}
+		if page == 7 {
+			beginNetworkOperation("wifi")
+		}
 	case "export":
 		saveReport()
 	case "awake":
@@ -752,7 +764,7 @@ func hit(actionID string) {
 		if strings.HasPrefix(actionID, "nav") {
 			var id int
 			fmt.Sscanf(actionID, "nav%d", &id)
-			if id >= 0 && id <= 5 {
+			if id >= 0 && id <= 7 {
 				page = id
 				if page == 2 && len(catalog.Cameras) == 0 && !scanning {
 					scanArchiveAsync()
@@ -789,6 +801,7 @@ func positionInputs() {
 	}
 	positionExtraControls()
 	positionNativeSyncControl()
+	positionNetworkControls()
 }
 func windowProc(hwnd uintptr, msg uint32, wp, lp uintptr) uintptr {
 	if extensionMessage(hwnd, msg, wp, lp) {
@@ -813,6 +826,7 @@ func windowProc(hwnd uintptr, msg uint32, wp, lp uintptr) uintptr {
 		procSendMessageW.Call(reportEdit, WM_SETFONT, fontNormal, 1)
 		setEditColors()
 		initExtraControls(hwnd)
+		initNetworkControls(hwnd)
 		initNativeSyncControl(hwnd)
 		positionInputs()
 		procSetTimer.Call(hwnd, 1, 15000, 0)
@@ -834,7 +848,7 @@ func windowProc(hwnd uintptr, msg uint32, wp, lp uintptr) uintptr {
 	case WM_ERASEBKGND:
 		return 1
 	case WM_CTLCOLOREDIT, WM_CTLCOLORSTATIC, WM_CTLCOLORLISTBOX:
-		if lp == pathEdit || lp == reportEdit || lp == archiveList || lp == checkEdit || lp == afterEdit || lp == staleEdit || lp == cooldownEdit || lp == serviceEdit || lp == syncPasswordEdit {
+		if lp == pathEdit || lp == reportEdit || lp == archiveList || lp == checkEdit || lp == afterEdit || lp == staleEdit || lp == cooldownEdit || lp == serviceEdit || lp == syncPasswordEdit || lp == networkIPControl || lp == networkLogControl {
 			procSetTextColor.Call(wp, col(sysColor("text")))
 			procSetBkColor.Call(wp, col(sysColor("panelAlt")))
 			return brushInput
