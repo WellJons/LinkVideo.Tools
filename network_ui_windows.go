@@ -32,7 +32,7 @@ var (
 	networkHistory NetworkMonitorHistory
 	monitorReport string
 	networkBusy bool
-	networkStatus = "Доступны поиск ONVIF / SADP / DHIP, проверка IP и сканирование Wi-Fi."
+	networkStatus = "Доступны поиск ONVIF / SADP / DHIP / XM, проверка IP и сканирование Wi-Fi."
 	networkDevices []DiscoveredDevice
 	networkWiFi []WiFiBSS
 	networkReport string
@@ -70,7 +70,7 @@ func drawDiscoveryPage(h uintptr) {
 	card(h, rr(x, 138, w, 91))
 	label(h, "Обнаружение камер и регистраторов", x+21, 149, w-45, 27, fontBold, sysColor("text"))
 	label(h, networkStatus, x+23, 187, w-348, 26, fontSmall, sysColor("muted"))
-	action(h, "network_discover", rr(x+w-310, 158, 291, 45), "Найти ONVIF / SADP / DHIP", true)
+	action(h, "network_discover", rr(x+w-310, 158, 291, 45), "Найти ONVIF / SADP / DHIP / XM", true)
 
 	card(h, rr(x, 241, w, 266))
 	label(h, fmt.Sprintf("Обнаруженные устройства: %d", len(networkDevices)), x+22, 251, w-45, 30, fontBold, sysColor("text"))
@@ -93,7 +93,9 @@ func drawDiscoveryPage(h uintptr) {
 		}
 		label(h, name, x+196, y+4, 190, 33, fontNormal, sysColor("text"))
 		label(h, d.Protocol, x+398, y+4, w-580, 33, fontSmall, sysColor("muted"))
-		action(h, fmt.Sprintf("network_select_%d", networkDeviceOffset+i), rr(x+w-157, y+4, 140, 35), "Проверить IP", false)
+		action(h, fmt.Sprintf("network_copy_ip_%d", networkDeviceOffset+i), rr(x+w-282, y+4, 79, 35), "Коп. IP", false)
+		action(h, fmt.Sprintf("network_copy_mac_%d", networkDeviceOffset+i), rr(x+w-196, y+4, 86, 35), "Коп. MAC", false)
+		action(h, fmt.Sprintf("network_select_%d", networkDeviceOffset+i), rr(x+w-102, y+4, 85, 35), "Тест", false)
 	}
 
 	card(h, rr(x, 518, w, maxInt32(188, viewHeight-570)))
@@ -165,7 +167,7 @@ func beginNetworkOperation(kind string) {
 func updateNetworkReport() {
 	var b strings.Builder
 	b.WriteString("LinkVideo.Tools — диагностика сети и камер\r\n")
-	b.WriteString("Протоколы поиска: ONVIF WS-Discovery, Hikvision SADP, Dahua DHIP.\r\n")
+	b.WriteString("Протоколы поиска: ONVIF WS-Discovery, Hikvision SADP, Dahua DHIP, XMEye DVRIP.\r\n")
 	b.WriteString("Проверка камер не выполняет авторизацию, изменение настроек и получение видео.\r\n\r\n")
 	for _, section := range []string{discoveryReport, wifiReport, probeReport, monitorReport} {
 		if section != "" {
@@ -306,7 +308,26 @@ func networkAction(id string) bool {
 			showMsg("Сохранено:\n"+out, "Отчёт", 0x40)
 		}
 	default:
-		if strings.HasPrefix(id, "network_select_") {
+		if strings.HasPrefix(id, "network_copy_ip_") || strings.HasPrefix(id, "network_copy_mac_") {
+			isMAC := strings.HasPrefix(id, "network_copy_mac_")
+			prefix := "network_copy_ip_%d"
+			if isMAC {
+				prefix = "network_copy_mac_%d"
+			}
+			var index int
+			if _, err := fmt.Sscanf(id, prefix, &index); err == nil && index >= 0 && index < len(networkDevices) {
+				value := networkDevices[index].IP
+				if isMAC {
+					value = networkDevices[index].MAC
+				}
+				if err := copyNetworkText(value); err != nil {
+					showMsg(err.Error(), "Копирование", 0x30)
+				} else {
+					networkStatus = "Скопировано: " + value
+					invalidate()
+				}
+			}
+		} else if strings.HasPrefix(id, "network_select_") {
 			var index int
 			if _, err := fmt.Sscanf(id, "network_select_%d", &index); err == nil && index >= 0 && index < len(networkDevices) {
 				setText(networkIPControl, networkDevices[index].IP)
