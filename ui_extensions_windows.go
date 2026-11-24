@@ -533,6 +533,9 @@ func extensionAction(id string) bool {
 }
 func extensionMessage(hwnd uintptr, msg uint32, wp, lp uintptr) bool {
 	switch msg {
+	case WM_APP_NETWORK_SAMPLE:
+		networkSampleDone()
+		return true
 	case WM_APP_NETWORK:
 		networkDone()
 		return true
